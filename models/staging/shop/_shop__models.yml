@@ -1,0 +1,142 @@
+version: 2
+
+models:
+  - name: stg_shop__customers
+    description: "Клиенты из OLTP: одна строка — один зарегистрированный клиент."
+    columns:
+      - name: customer_id
+        description: "Уникальный идентификатор клиента."
+        data_tests: [unique, not_null]
+      - name: registered_at
+        description: "Дата и время регистрации клиента."
+      - name: registration_date
+        description: "Дата регистрации без времени."
+      - name: city
+        description: "Город клиента."
+      - name: acquisition_channel
+        description: "Канал привлечения клиента."
+
+  - name: stg_shop__orders
+    description: "Заказы из OLTP: одна строка — один заказ, включая тестовые."
+    columns:
+      - name: order_id
+        description: "Уникальный номер заказа."
+        data_tests: [unique, not_null]
+      - name: customer_id
+        description: "Идентификатор клиента, оформившего заказ."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_shop__customers')
+                field: customer_id
+      - name: ordered_at
+        description: "Дата и время оформления заказа."
+      - name: order_date
+        description: "Дата оформления заказа без времени."
+      - name: order_status
+        description: "Статус заказа; test обозначает тестовый заказ."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['paid', 'pending', 'returned', 'cancelled', 'test']
+      - name: order_amount
+        description: "Сумма заказа после скидок."
+      - name: is_test_order
+        description: "Признак тестового заказа."
+
+  - name: stg_shop__order_items
+    description: "Позиции заказов: одна строка — один товар в одном заказе."
+    columns:
+      - name: order_item_id
+        description: "Составной текстовый ключ позиции в формате order_id-product_id."
+        data_tests: [unique, not_null]
+      - name: order_id
+        description: "Номер заказа, которому принадлежит позиция."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_shop__orders')
+                field: order_id
+      - name: product_id
+        description: "Идентификатор товара в позиции."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_shop__products')
+                field: product_id
+      - name: quantity
+        description: "Количество единиц товара в позиции."
+      - name: unit_price
+        description: "Цена одной единицы до скидки."
+      - name: discount_amount
+        description: "Скидка на всю позицию."
+      - name: gross_amount
+        description: "Сумма позиции до скидки: quantity умножить на unit_price."
+      - name: line_amount
+        description: "Сумма позиции после вычета скидки."
+
+  - name: stg_shop__payments
+    description: "Платёжные операции: одна строка — одна операция; возврат хранится отрицательной суммой."
+    columns:
+      - name: payment_id
+        description: "Уникальный идентификатор платёжной операции."
+        data_tests: [unique, not_null]
+      - name: order_id
+        description: "Номер заказа, к которому относится операция."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_shop__orders')
+                field: order_id
+      - name: paid_at
+        description: "Дата и время проведения операции; для ожидающих операций может быть NULL."
+      - name: payment_status
+        description: "Статус операции: success, failed или pending."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['success', 'failed', 'pending']
+      - name: amount
+        description: "Сумма операции; возврат имеет отрицательное значение."
+      - name: is_refund
+        description: "Признак возврата: успешная операция с отрицательной суммой."
+
+  - name: stg_shop__products
+    description: "Товары из OLTP: одна строка — один товар; категория хранится названием."
+    columns:
+      - name: product_id
+        description: "Уникальный идентификатор товара."
+        data_tests: [unique, not_null]
+      - name: category_name
+        description: "Название категории товара."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_shop__product_categories')
+                field: category_name
+      - name: brand
+        description: "Бренд товара."
+      - name: product_name
+        description: "Название товара."
+
+  - name: stg_shop__product_categories
+    description: "Справочник категорий в виде дерева; корневые категории не имеют родителя."
+    columns:
+      - name: category_id
+        description: "Уникальный идентификатор категории."
+        data_tests: [unique, not_null]
+      - name: parent_category_id
+        description: "Идентификатор родительской категории; NULL для корневой категории."
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_shop__product_categories')
+                field: category_id
+      - name: category_name
+        description: "Уникальное название категории."
+        data_tests: [unique, not_null]
