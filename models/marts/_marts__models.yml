@@ -1,0 +1,171 @@
+version: 2
+
+models:
+  - name: fct_orders
+    description: >
+      Факт заказов с зерном одна строка на один нетестовый заказ. Содержит сумму заказа,
+      итоги успешных оплат и возвратов, признак подтверждённой покупки и число различных товаров.
+    columns:
+      - name: order_id
+        description: "Уникальный номер заказа; зерно таблицы."
+        data_tests: [unique, not_null]
+      - name: customer_id
+        description: "Идентификатор клиента, оформившего заказ."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customers')
+                field: customer_id
+      - name: order_date
+        description: "Календарная дата оформления заказа."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_dates')
+                field: date_day
+      - name: ordered_at
+        description: "Дата и время оформления заказа."
+      - name: order_status
+        description: "Статус нетестового заказа."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['paid', 'pending', 'returned', 'cancelled']
+      - name: order_amount
+        description: "Сумма заказа после скидок."
+        data_tests: [non_negative]
+      - name: paid_amount
+        description: "Сумма успешных оплат, не являющихся возвратами."
+      - name: refunded_amount
+        description: "Сумма возвратов положительным числом."
+      - name: net_paid_amount
+        description: "Чистая сумма успешных платёжных операций после вычета возвратов."
+      - name: successful_payments_count
+        description: "Количество успешных операций без учёта возвратов."
+      - name: first_paid_at
+        description: "Время первой успешной оплаты; NULL, если успешной оплаты нет."
+      - name: is_confirmed
+        description: '{{ doc("confirmed_order") }}'
+        data_tests: [not_null]
+      - name: items_count
+        description: "Количество различных товаров в заказе, count distinct product_id."
+
+  - name: fct_order_items
+    description: >
+      Факт товарных позиций с зерном одна строка на товар в нетестовом заказе.
+      Содержит количество, цену, скидку, итоговую сумму позиции и признак подтверждённой покупки.
+    columns:
+      - name: order_item_id
+        description: "Уникальный составной ключ позиции order_id-product_id; зерно таблицы."
+        data_tests: [unique, not_null]
+      - name: order_id
+        description: "Номер заказа, к которому относится позиция."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_orders')
+                field: order_id
+      - name: product_id
+        description: "Идентификатор товара в позиции."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_products')
+                field: product_id
+      - name: customer_id
+        description: "Идентификатор клиента, совершившего заказ."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customers')
+                field: customer_id
+      - name: order_date
+        description: "Дата оформления заказа."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_dates')
+                field: date_day
+      - name: quantity
+        description: "Количество единиц товара в позиции."
+      - name: unit_price
+        description: "Цена одной единицы товара до скидки."
+      - name: discount_amount
+        description: "Скидка на всю позицию."
+      - name: line_amount
+        description: "Сумма позиции после скидки."
+        data_tests: [non_negative]
+      - name: is_confirmed
+        description: '{{ doc("confirmed_order") }}'
+        data_tests: [not_null]
+
+  - name: dim_customers
+    description: >
+      Измерение клиентов с атрибутами регистрации и агрегатами подтверждённых покупок.
+      Содержит всех клиентов, в том числе клиентов без покупок.
+    columns:
+      - name: customer_id
+        description: "Уникальный идентификатор клиента; зерно таблицы."
+        data_tests: [unique, not_null]
+      - name: registered_at
+        description: "Дата и время регистрации клиента."
+      - name: registration_date
+        description: "Дата регистрации без времени."
+      - name: city
+        description: "Город клиента."
+      - name: acquisition_channel
+        description: "Канал привлечения клиента."
+      - name: first_confirmed_order_id
+        description: "Номер первой подтверждённой покупки; при равенстве времени выбирается меньший order_id."
+      - name: first_confirmed_at
+        description: "Время первой успешной оплаты подтверждённого заказа."
+      - name: confirmed_orders_count
+        description: "Количество подтверждённых покупок клиента."
+      - name: confirmed_revenue
+        description: "Сумма order_amount по подтверждённым покупкам клиента."
+      - name: is_buyer
+        description: "True, если у клиента есть хотя бы одна подтверждённая покупка."
+
+  - name: dim_products
+    description: >
+      Измерение товаров с названием, брендом и иерархией категорий до корневой категории.
+      Содержит все товары из источника.
+    columns:
+      - name: product_id
+        description: "Уникальный идентификатор товара; зерно таблицы."
+        data_tests: [unique, not_null]
+      - name: product_name
+        description: "Название товара."
+      - name: brand
+        description: "Бренд товара."
+      - name: category_name
+        description: "Название непосредственной категории товара."
+      - name: parent_category_name
+        description: "Название родительской категории."
+      - name: root_category_name
+        description: "Название корневой категории дерева."
+
+  - name: dim_dates
+    description: >
+      Непрерывное календарное измерение от минимальной до максимальной даты заказа включительно.
+      День недели задан по ISO: понедельник — 1, воскресенье — 7.
+    columns:
+      - name: date_day
+        description: "Календарная дата; зерно таблицы."
+        data_tests: [unique, not_null]
+      - name: year
+        description: "Календарный год."
+      - name: quarter
+        description: "Квартал календарного года, от 1 до 4."
+      - name: month
+        description: "Месяц календарного года, от 1 до 12."
+      - name: day_of_week
+        description: "Номер дня недели по ISO 8601: понедельник 1, воскресенье 7."
+      - name: is_weekend
+        description: "True для субботы и воскресенья."
