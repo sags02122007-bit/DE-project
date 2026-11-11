@@ -1,0 +1,106 @@
+version: 2
+
+models:
+  - name: int_orders_with_payments
+    description: >
+      Одна строка — один заказ (включая тестовые), к нему пристыканы итоги по платежам.
+      Платежи сначала свёрнуты до заказа, потом присоединены left join: заказ без платежей не теряется.
+    columns:
+      - name: order_id
+        description: "Номер заказа."
+      - name: customer_id
+        description: "Клиент, оформивший заказ."
+      - name: ordered_at
+        description: "Дата и время оформления заказа."
+      - name: order_date
+        description: "Дата оформления заказа."
+      - name: order_status
+        description: "Статус заказа из OLTP."
+      - name: order_amount
+        description: "Сумма заказа после скидок."
+      - name: is_test_order
+        description: "Признак тестового заказа."
+      - name: successful_payments_count
+        description: "Число успешных оплат без возвратов."
+      - name: paid_amount
+        description: "Сумма успешных оплат без возвратов; 0, если оплат нет."
+      - name: refunded_amount
+        description: "Сумма возвратов положительным числом."
+      - name: net_paid_amount
+        description: "Оплачено минус возвращено."
+      - name: first_paid_at
+        description: "Время первой успешной оплаты без возврата."
+      - name: success_operations_count
+        description: "Количество операций в статусе success, включая возвраты."
+      - name: failed_operations_count
+        description: "Количество неуспешных операций."
+      - name: pending_operations_count
+        description: "Количество операций в ожидании."
+      - name: is_confirmed
+        description: "Подтверждённая покупка: заказ paid и есть успешная операция, не являющаяся возвратом."
+
+  - name: int_product_categories
+    description: >
+      Иерархия категорий, развёрнутая рекурсивным CTE. Для каждой категории определяются
+      её непосредственный родитель и корневая категория на любой глубине дерева.
+    columns:
+      - name: category_id
+        description: "Идентификатор категории."
+      - name: category_name
+        description: "Название категории."
+      - name: parent_category_id
+        description: "Идентификатор непосредственной родительской категории; NULL для корня."
+      - name: parent_category_name
+        description: "Название непосредственной родительской категории; NULL для корня."
+      - name: root_category_id
+        description: "Идентификатор корневой категории дерева."
+      - name: root_category_name
+        description: "Название корневой категории дерева."
+
+  - name: int_order_items_enriched
+    description: >
+      Позиции товаров с контекстом заказа и клиента. Одна строка соответствует одной позиции
+      исходного заказа; тестовые заказы сохраняются для промежуточных сверок.
+    columns:
+      - name: order_item_id
+        description: "Составной идентификатор позиции order_id-product_id."
+      - name: order_id
+        description: "Идентификатор заказа."
+      - name: product_id
+        description: "Идентификатор товара."
+      - name: customer_id
+        description: "Идентификатор клиента, оформившего заказ."
+      - name: order_date
+        description: "Дата оформления заказа."
+      - name: ordered_at
+        description: "Дата и время оформления заказа."
+      - name: quantity
+        description: "Количество единиц товара."
+      - name: unit_price
+        description: "Цена одной единицы до скидки."
+      - name: discount_amount
+        description: "Скидка на позицию."
+      - name: gross_amount
+        description: "Сумма позиции до скидки."
+      - name: line_amount
+        description: "Сумма позиции после скидки."
+      - name: is_test_order
+        description: "Признак того, что позиция принадлежит тестовому заказу."
+      - name: order_status
+        description: "Статус заказа."
+      - name: is_confirmed
+        description: "Признак подтверждённой покупки."
+
+  - name: int_customer_purchases
+    description: >
+      История подтверждённых покупок клиентов. В модель попадают только нетестовые заказы
+      со статусом paid и хотя бы одной успешной платёжной операцией без возврата.
+    columns:
+      - name: customer_id
+        description: "Идентификатор покупателя."
+      - name: order_id
+        description: "Идентификатор подтверждённого заказа."
+      - name: paid_at
+        description: "Время первой успешной оплаты заказа."
+      - name: order_amount
+        description: "Сумма подтверждённого заказа после скидок."
